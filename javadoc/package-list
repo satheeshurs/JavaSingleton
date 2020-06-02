@@ -1,0 +1,5 @@
+com.singleton.reflection
+com.singleton.reflection.clone
+com.singleton.reflection.multiclassloader
+com.singleton.reflection.multithread
+com.singleton.reflection.serialization
