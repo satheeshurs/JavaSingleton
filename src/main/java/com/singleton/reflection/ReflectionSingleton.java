@@ -1,7 +1,5 @@
 package com.singleton.reflection;
 
-import java.sql.Ref;
-
 /**
  * using reflection constructor access can be changed from private to public
  * <br><b>Fix:</b> when object is already created through RunTimeException in the constructor so second object wont be created
