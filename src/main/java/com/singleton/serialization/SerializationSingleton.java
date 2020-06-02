@@ -1,4 +1,4 @@
-package com.singleton.reflection.serialization;
+package com.singleton.serialization;
 
 import java.io.*;
 

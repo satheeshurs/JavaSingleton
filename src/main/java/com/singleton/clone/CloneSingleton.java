@@ -1,4 +1,4 @@
-package com.singleton.reflection.clone;
+package com.singleton.clone;
 
 /**
  * Clonning a object will violate Singleton

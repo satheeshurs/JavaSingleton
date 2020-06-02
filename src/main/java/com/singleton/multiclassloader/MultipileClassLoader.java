@@ -1,4 +1,4 @@
-package com.singleton.reflection.multiclassloader;
+package com.singleton.multiclassloader;
 
 /**
  * Multiple class loaders will create multiple instance for a singleton class
