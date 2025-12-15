@@ -11,4 +11,6 @@ Breaking Singleton possibilities
 1) Reflection
    Using reflection any of the method or constructor acces can be changed.
    Fix: Inside the constructor throw an exception when the reference static instance variable is null.
+2)
+
    
