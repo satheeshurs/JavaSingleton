@@ -1,0 +1,125 @@
+name: Dev CI/CD - .NET Build, Migrate, Deploy
+
+on:
+  pull_request:
+    branches:
+      - development            # CI only (build + test)
+  push:
+    branches:
+      - development            # Full CI/CD after merge
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+# Prevent multiple deployments at the same time
+concurrency:
+  group: dev-environment
+  cancel-in-progress: true
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  SOLUTION: '**/Analytics.Reporting.Portal.Web.sln'
+  HOST_PROJECT: '**/Analytics.Reporting.Portal.Web.Host.csproj'
+  EF_PROJECT_DIR: 'src/Analytics.Reporting.Portal.EntityFrameworkCore'
+  EF_PROJECT_FILE: 'Analytics.Reporting.Portal.EntityFrameworkCore.csproj'
+  BUILD_CONFIG: 'Release'
+  PUBLISH_OUTPUT: './publish'
+  ZIP_NAME: 'release.zip'
+  AZURE_WEBAPP_NAME: 'app-aiz-gda-ea-portal-api-dev-cus'
+  AZURE_SLOT_NAME: 'development'
+
+jobs:
+  # -----------------------------
+  # CI : Build + Test
+  # -----------------------------
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore NuGet packages
+        run: dotnet restore "${{ env.SOLUTION }}"
+
+      - name: Build solution
+        run: dotnet build "${{ env.SOLUTION }}" --configuration ${{ env.BUILD_CONFIG }} --no-restore
+
+      - name: Run unit tests
+        run: dotnet test "${{ env.SOLUTION }}" --no-build --verbosity normal
+
+      - name: Publish host project
+        run: dotnet publish "${{ env.HOST_PROJECT }}" -c ${{ env.BUILD_CONFIG }} -o ${{ env.PUBLISH_OUTPUT }} --no-build
+
+      - name: Install dotnet-ef
+        if: github.event_name == 'push'
+        run: dotnet tool install --global dotnet-ef --version 8.0.0 || true
+
+      - name: Add dotnet tools to PATH
+        if: github.event_name == 'push'
+        run: echo "${{ github.workspace }}/.dotnet/tools" >> $GITHUB_PATH
+
+      - name: Run EF Core migrations (DEV DB)
+        if: github.event_name == 'push'
+        env:
+          ConnectionStrings__Default: ${{ secrets.SQL_CONNECTION_STRING }}
+          ASPNETCORE_ENVIRONMENT: Development
+        run: |
+          cd ${{ env.EF_PROJECT_DIR }}
+          dotnet ef database update \
+            --project ./${{ env.EF_PROJECT_FILE }} \
+            --startup-project ../$(basename "${{ env.HOST_PROJECT }}" .csproj) \
+            --context ApplicationDbContext \
+            -- --environment Development
+
+      - name: Zip published output
+        run: |
+          cd ${{ env.PUBLISH_OUTPUT }}
+          zip -r ${GITHUB_WORKSPACE}/${{ env.ZIP_NAME }} ./*
+
+      - name: Upload artifact for deploy
+        uses: actions/upload-artifact@v4
+        with:
+          name: aspnet-publish
+          path: ${{ env.ZIP_NAME }}
+
+  # -----------------------------
+  # CD : Deploy to Azure (DEV)
+  # -----------------------------
+  deploy:
+    if: github.event_name == 'push'      # Deploy ONLY after merge
+    runs-on: ubuntu-latest
+    needs: build
+    environment: dev
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: aspnet-publish
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: >
+            {"clientId":"${{ vars.AZURE_CLIENT_ID }}",
+             "clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}",
+             "subscriptionId":"${{ vars.AZURE_SUBSCRIPTION_ID }}",
+             "tenantId":"${{ vars.AZURE_TENANT_ID }}"}
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          slot-name: ${{ env.AZURE_SLOT_NAME }}
+          package: ./${{ env.ZIP_NAME }}
+
+      - name: Deployment confirmation
+        run: echo "Deployed successfully to DEV environment"
