@@ -59,8 +59,8 @@ jobs:
     steps:
       - name: Check Azure secrets presence
         run: |
-          echo "CLIENT_ID set: ${{ vars.TEST_ENV != '' }}"
-          echo "TENANT_ID set: ${{ vars.TEST_ENV_1 != '' }}"
+          echo "CLIENT_ID set: ${{ secrets.TEST_ENV != '' }}"
+          echo "TENANT_ID set: ${{ secrets.TEST_ENV_1 != '' }}"
           echo "SUBSCRIPTION_ID set: ${{ vars.AZURE_SUBSCRIPTION_ID != '' }}"
           echo "CLIENT_SECRET set: ${{ secrets.AZURE_CLIENT_SECRET != '' }}"
  
